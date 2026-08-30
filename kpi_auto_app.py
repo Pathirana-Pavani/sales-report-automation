@@ -6,7 +6,7 @@ import requests
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
 
-import report_full_1 as core
+import report_builder as core
 import kpi_fetch
 
 

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import requests
 import streamlit as st
 
-import report_full_1 as core
+import report_builder as core
 import kpi_fetch
 
 st.set_page_config(page_title="Hutch KPI Auto Report", page_icon="📊")
