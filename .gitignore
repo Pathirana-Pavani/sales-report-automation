@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+*.har
+*.xlsx
+Sales Report/
+.streamlit/secrets.toml
