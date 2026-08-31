@@ -10,7 +10,7 @@ import kpi_fetch
 import pptx_report
 from email_report import send_report_email
 
-st.set_page_config(page_title="Sales Report automation"", page_icon="📊")
+st.set_page_config(page_title="Sales Report automation", page_icon="📊")
 
 st.title("Sales Report automation")
 st.caption("Fetches KPI data directly from the RAN portal and builds the Excel report + presentation for the region")
