@@ -10,14 +10,14 @@ import kpi_fetch
 import pptx_report
 from email_report import send_report_email
 
-st.set_page_config(page_title="Hutch KPI Auto Report", page_icon="📊")
+st.set_page_config(page_title="Sales Report automation"", page_icon="📊")
 
-st.title("Hutch KPI Auto Report")
-st.caption("Fetches KPI data directly from the RAN portal and builds the Excel report + presentation from the region's saved template.")
+st.title("Sales Report automation")
+st.caption("Fetches KPI data directly from the RAN portal and builds the Excel report + presentation for the region")
 
 with st.form("kpi_form"):
     col1, col2 = st.columns(2)
-    email = col1.text_input("Username / Email")
+    email = col1.text_input("RANDORS Username / Email")
     password = col2.text_input("Password", type="password")
 
     region = st.selectbox("Region", list(kpi_fetch.DISTRICTS.keys()))
