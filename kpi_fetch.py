@@ -42,7 +42,7 @@ DISTRICTS = {
         "Kegalle": (12, 6),
         "Puttalam": (22, 4),
     },
-    "A'pura-Kurunegala": {
+    "Anuradhapura-Kurunegala": {
         "Anuradhapura": (2, 3),
         "Kurunegala": (14, 4),
     },
