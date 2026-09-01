@@ -10,8 +10,17 @@ import pandas as pd
 DISTRICTS = {
     "Central": ["Badulla", "Kandy", "Matale", "Nuwara Eliya", "Network"],
     "South": ["Galle", "Matara", "Hambantota", "Monaragala", "Ratnapura", "Network"],
-    "North East": ["Jaffna", "Kilinochchi", "Mannar", "Mullaitivu", "Vavuniya", "Ampara", "Batticaloa", "Trincomalee", "Network"]
+    "North East": ["Jaffna", "Kilinochchi", "Mannar", "Mullaitivu", "Vavuniya", "Ampara", "Batticaloa", "Trincomalee", "Network"],
+    "Gampaha": ["Gampaha", "Network"],
+    "Kegalle-Puttalama": ["Kegalle", "Puttalam", "Network"],
+    "A'pura-Kurunegala": ["Anuradhapura", "Kurunegala", "Network"],
+    "Colombo-Kaluthara": ["Colombo", "Kalutara", "Network"],
 }
+
+# For the non-Central sheet titles/charts ("Data and Voice Traffic Behavior
+# of <ADJ> Cluster..."). South and North East keep their original wording;
+# new regions default to their own name.
+REGION_ADJECTIVE = {"South": "Southern", "North East": "NorthEast"}
 
 
 class ReportBuilder:
@@ -133,7 +142,7 @@ class ReportBuilder:
 
         if 'Network' not in headers: return
         net_col = headers.index('Network')
-        adj = "NorthEast" if self.selected_region == "North East" else "Southern"
+        adj = REGION_ADJECTIVE.get(self.selected_region, self.selected_region)
 
         c1_prim = workbook.add_chart({'type': 'line'})
         for dist in available:
@@ -173,12 +182,12 @@ class ReportBuilder:
 
         districts = [d for d in DISTRICTS[self.selected_region] if d != "Network"]
         available = [d for d in districts if d in master_df.columns]
-        adj = "NorthEast" if self.selected_region == "North East" else "Southern"
+        adj = REGION_ADJECTIVE.get(self.selected_region, self.selected_region)
         date_fmt = workbook.add_format({'num_format': 'm/d/yyyy'})
 
         # --- SHEET 1: 4G Voice - Cluster ---
         cols_c = ['Date'] + available
-        if self.selected_region == "North East" and 'Network' in master_df.columns:
+        if self.selected_region != "South" and 'Network' in master_df.columns:
             cols_c.append('Network')
 
         cluster_df = master_df[cols_c].copy()
@@ -228,13 +237,16 @@ class ReportBuilder:
         districts = [d for d in DISTRICTS[self.selected_region] if d != "Network"]
         available = [d for d in districts if d in total_df.columns]
 
-        if self.selected_region == "North East":
-            total_df['Total North East Data Traffic'] = total_df[available].sum(axis=1)
+        adj = REGION_ADJECTIVE.get(self.selected_region, self.selected_region)
+        total_col = f'Total {self.selected_region} Data Traffic'
+
+        if self.selected_region != "South":
+            total_df[total_col] = total_df[available].sum(axis=1)
             if 'Network' in total_df.columns:
                 total_df = total_df.rename(columns={'Network': 'Total Network Data Traffic'})
             cols = ['Date'] + available
             if 'Total Network Data Traffic' in total_df.columns: cols.append('Total Network Data Traffic')
-            cols.append('Total North East Data Traffic')
+            cols.append(total_col)
             final_df = total_df[cols].copy()
         else:
             final_df = total_df[['Date'] + available].copy()
@@ -251,13 +263,13 @@ class ReportBuilder:
 
         c1_prim = workbook.add_chart({'type': 'line'})
 
-        if self.selected_region == "North East":
-            if 'Total North East Data Traffic' in final_df.columns:
-                c_idx = list(final_df.columns).index('Total North East Data Traffic')
+        if self.selected_region != "South":
+            if total_col in final_df.columns:
+                c_idx = list(final_df.columns).index(total_col)
                 c1_prim.add_series({'name': [sheet_name, 0, c_idx], 'categories': [sheet_name, 1, 0, max_row, 0], 'values': [sheet_name, 1, c_idx, max_row, c_idx]})
 
-            c1_prim.set_title({'name': 'Data and Voice Traffic Behavior of NorthEast Cluster – Total Data Traffic (3G/4G)'})
-            c1_prim.set_y_axis({'name': 'Total NorthEast Cluster Data Traffic (TB)'})
+            c1_prim.set_title({'name': f'Data and Voice Traffic Behavior of {adj} Cluster – Total Data Traffic (3G/4G)'})
+            c1_prim.set_y_axis({'name': f'Total {adj} Cluster Data Traffic (TB)'})
             c1_prim.set_x_axis({'name': 'Date', 'date_axis': True})
             c1_prim.set_legend({'position': 'bottom'})
 
@@ -292,13 +304,16 @@ class ReportBuilder:
         districts = [d for d in DISTRICTS[self.selected_region] if d != "Network"]
         available = [d for d in districts if d in total_df.columns]
 
-        if self.selected_region == "North East":
-            total_df['Total North East Voice Traffic'] = total_df[available].sum(axis=1)
+        adj = REGION_ADJECTIVE.get(self.selected_region, self.selected_region)
+        total_col = f'Total {self.selected_region} Voice Traffic'
+
+        if self.selected_region != "South":
+            total_df[total_col] = total_df[available].sum(axis=1)
             if 'Network' in total_df.columns:
                 total_df = total_df.rename(columns={'Network': 'Total Network Voiced Traffic'})
             cols = ['Date'] + available
             if 'Total Network Voiced Traffic' in total_df.columns: cols.append('Total Network Voiced Traffic')
-            cols.append('Total North East Voice Traffic')
+            cols.append(total_col)
             final_df = total_df[cols].copy()
         else:
             final_df = total_df[['Date'] + available].copy()
@@ -315,13 +330,13 @@ class ReportBuilder:
 
         c1_prim = workbook.add_chart({'type': 'line'})
 
-        if self.selected_region == "North East":
-            if 'Total North East Voice Traffic' in final_df.columns:
-                c_idx = list(final_df.columns).index('Total North East Voice Traffic')
+        if self.selected_region != "South":
+            if total_col in final_df.columns:
+                c_idx = list(final_df.columns).index(total_col)
                 c1_prim.add_series({'name': [sheet_name, 0, c_idx], 'categories': [sheet_name, 1, 0, max_row, 0], 'values': [sheet_name, 1, c_idx, max_row, c_idx]})
 
-            c1_prim.set_title({'name': 'Data and Voice Traffic Behavior of NorthEast Cluster – Total Voice Traffic (2G/3G/4G)'})
-            c1_prim.set_y_axis({'name': 'Total NorthEast Cluster Voice Traffic (Erlang)'})
+            c1_prim.set_title({'name': f'Data and Voice Traffic Behavior of {adj} Cluster – Total Voice Traffic (2G/3G/4G)'})
+            c1_prim.set_y_axis({'name': f'Total {adj} Cluster Voice Traffic (Erlang)'})
             c1_prim.set_x_axis({'name': 'Date', 'date_axis': True})
             c1_prim.set_legend({'position': 'bottom'})
 
@@ -361,7 +376,7 @@ def build_excel_report(target_base_dir, region):
         builder.process_4g_voice_sheet(base_folder, writer, workbook)
         builder.process_4g_data_sheet(base_folder, writer, workbook)
 
-    elif region in ["South", "North East"]:
+    else:
         for tech, folder, traffic_logic, unit in [
             ('2G Voice', '2G Voice', lambda df: df['TCH HR (Erl)'] + df['TCH FR (Erl)'], 'Erlang'),
             ('3G Voice', '3G Voice', lambda df: df['CS AMR (Erl)'], 'Erlang'),

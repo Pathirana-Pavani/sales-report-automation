@@ -35,6 +35,21 @@ DISTRICTS = {
         "Batticaloa": (4, 2),
         "Trincomalee": (24, 2),
     },
+    "Gampaha": {
+        "Gampaha": (7, 9),
+    },
+    "Kegalle-Puttalama": {
+        "Kegalle": (12, 6),
+        "Puttalam": (22, 4),
+    },
+    "A'pura-Kurunegala": {
+        "Anuradhapura": (2, 3),
+        "Kurunegala": (14, 4),
+    },
+    "Colombo-Kaluthara": {
+        "Colombo": (5, 9),
+        "Kalutara": (10, 9),
+    },
 }
 
 DISTRICT_TEMPLATE_ID = 40  # "D. District - Default" (Geo tab)
