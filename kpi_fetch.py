@@ -44,12 +44,19 @@ DISTRICTS = {
     },
     "Anuradhapura-Kurunegala": {
         "Anuradhapura": (2, 3),
+        "Polonnaruwa": (21, 3),
         "Kurunegala": (14, 4),
     },
     "Colombo-Kaluthara": {
         "Colombo": (5, 9),
         "Kalutara": (10, 9),
     },
+}
+
+# Some regions don't have their own presentation template — they share one
+# combined deck instead. name -> (template file in templates/, member regions)
+COMBO_PRESENTATION_GROUPS = {
+    "Kegalle-Puttalama-Gampaha": ["Gampaha", "Kegalle-Puttalama"],
 }
 
 DISTRICT_TEMPLATE_ID = 40  # "D. District - Default" (Geo tab)

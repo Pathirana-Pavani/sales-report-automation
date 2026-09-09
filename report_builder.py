@@ -13,7 +13,7 @@ DISTRICTS = {
     "North East": ["Jaffna", "Kilinochchi", "Mannar", "Mullaitivu", "Vavuniya", "Ampara", "Batticaloa", "Trincomalee", "Network"],
     "Gampaha": ["Gampaha", "Network"],
     "Kegalle-Puttalama": ["Kegalle", "Puttalam", "Network"],
-    "Anuradhapura-Kurunegala": ["Anuradhapura", "Kurunegala", "Network"],
+    "Anuradhapura-Kurunegala": ["Anuradhapura", "Polonnaruwa", "Kurunegala", "Network"],
     "Colombo-Kaluthara": ["Colombo", "Kalutara", "Network"],
 }
 

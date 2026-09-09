@@ -66,13 +66,34 @@ if submitted:
                 log("Excel done.")
 
                 st.session_state["pptx_bytes"] = None
-                template_path = os.path.join(os.path.dirname(__file__), "templates", f"{region}.pptx")
+                templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+                template_path = os.path.join(templates_dir, f"{region}.pptx")
+                excel_paths_for_pptx = [excel_path]
+
+                if not os.path.exists(template_path):
+                    combo_name = next(
+                        (name for name, members in kpi_fetch.COMBO_PRESENTATION_GROUPS.items() if region in members),
+                        None,
+                    )
+                    if combo_name:
+                        template_path = os.path.join(templates_dir, f"{combo_name}.pptx")
+                        sibling_regions = [r for r in kpi_fetch.COMBO_PRESENTATION_GROUPS[combo_name] if r != region]
+                        for sibling in sibling_regions:
+                            log(f"Also fetching {sibling} (shares this presentation)...")
+                            kpi_fetch.fetch_region_report(
+                                session, sibling,
+                                start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
+                                tmp_dir, include_network, log,
+                            )
+                            excel_paths_for_pptx.append(core.build_excel_report(tmp_dir, sibling))
+
                 if os.path.exists(template_path):
                     log("Updating presentation charts...")
                     pptx_out_path = os.path.join(tmp_dir, "report.pptx")
-                    pptx_report.build_pptx_report(template_path, excel_path, pptx_out_path, log=log)
+                    pptx_report.build_pptx_report(template_path, excel_paths_for_pptx, pptx_out_path, log=log)
                     with open(pptx_out_path, "rb") as f:
                         st.session_state["pptx_bytes"] = f.read()
+                    st.session_state["pptx_label"] = os.path.splitext(os.path.basename(template_path))[0]
                     log("Presentation done.")
                 else:
                     log(f"No presentation template configured for {region} yet — skipping.")
@@ -92,10 +113,11 @@ if st.session_state.get("excel_bytes"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     if st.session_state.get("pptx_bytes"):
+        pptx_label = st.session_state.get("pptx_label", region)
         st.download_button(
             "Download Presentation",
             data=st.session_state["pptx_bytes"],
-            file_name=f"{region}_Region_Monthly_Review.pptx",
+            file_name=f"{pptx_label}_Monthly_Review.pptx",
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         )
 
@@ -113,8 +135,9 @@ if st.session_state.get("excel_bytes"):
                 "application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )]
             if st.session_state.get("pptx_bytes"):
+                pptx_label = st.session_state.get("pptx_label", region)
                 attachments.append((
-                    f"{region}_Region_Monthly_Review.pptx",
+                    f"{pptx_label}_Monthly_Review.pptx",
                     st.session_state["pptx_bytes"],
                     "application", "vnd.openxmlformats-officedocument.presentationml.presentation",
                 ))

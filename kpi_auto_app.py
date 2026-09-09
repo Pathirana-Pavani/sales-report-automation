@@ -1,3 +1,4 @@
+import os
 import queue
 import threading
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ from tkinter import filedialog, ttk, messagebox
 
 import report_builder as core
 import kpi_fetch
+import pptx_report
 
 
 class KpiAutoApp:
@@ -129,9 +131,40 @@ class KpiAutoApp:
             kpi_fetch.fetch_region_report(session, region, start, end, target_dir, include_network, self._log)
 
             self._log("Building Excel report...")
-            output_path = core.build_excel_report(target_dir, region)
-            self._log(f"Done! Report saved to:\n{output_path}")
-            self.root.after(0, lambda: messagebox.showinfo("Success", f"Report generated:\n{output_path}"))
+            excel_path = core.build_excel_report(target_dir, region)
+            self._log(f"Excel report saved to:\n{excel_path}")
+
+            templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+            template_path = os.path.join(templates_dir, f"{region}.pptx")
+            excel_paths_for_pptx = [excel_path]
+
+            if not os.path.exists(template_path):
+                combo_name = next(
+                    (name for name, members in kpi_fetch.COMBO_PRESENTATION_GROUPS.items() if region in members),
+                    None,
+                )
+                if combo_name:
+                    template_path = os.path.join(templates_dir, f"{combo_name}.pptx")
+                    sibling_regions = [r for r in kpi_fetch.COMBO_PRESENTATION_GROUPS[combo_name] if r != region]
+                    for sibling in sibling_regions:
+                        self._log(f"Also fetching {sibling} (shares this presentation)...")
+                        kpi_fetch.fetch_region_report(session, sibling, start, end, target_dir, include_network, self._log)
+                        excel_paths_for_pptx.append(core.build_excel_report(target_dir, sibling))
+
+            pptx_path = None
+            if os.path.exists(template_path):
+                self._log("Updating presentation charts...")
+                label = os.path.splitext(os.path.basename(template_path))[0]
+                pptx_path = os.path.join(os.path.dirname(excel_path), f"{label}_Monthly_Review.pptx")
+                pptx_report.build_pptx_report(template_path, excel_paths_for_pptx, pptx_path, log=self._log)
+                self._log(f"Presentation saved to:\n{pptx_path}")
+            else:
+                self._log(f"No presentation template configured for {region} yet — skipping.")
+
+            msg = f"Excel report:\n{excel_path}"
+            if pptx_path:
+                msg += f"\n\nPresentation:\n{pptx_path}"
+            self.root.after(0, lambda: messagebox.showinfo("Success", msg))
         except Exception as e:
             self._log(f"ERROR: {e}")
             self.root.after(0, lambda: messagebox.showerror("Failed", str(e)))
