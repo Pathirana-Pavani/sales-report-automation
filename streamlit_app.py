@@ -27,6 +27,13 @@ with st.form("kpi_form"):
     start_date = col3.date_input("Start Date", value=today - timedelta(days=90))
     end_date = col4.date_input("End Date", value=today)
 
+    add_summary = st.checkbox("Add Pre/Post traffic summary table to every sheet", value=True)
+    col5, col6 = st.columns(2)
+    pre_start = col5.date_input("Pre period start", value=today - timedelta(days=90))
+    pre_end = col5.date_input("Pre period end", value=today - timedelta(days=84))
+    post_start = col6.date_input("Post period start", value=today - timedelta(days=6))
+    post_end = col6.date_input("Post period end", value=today)
+
     include_network = st.checkbox("Include Network totals (BSS tab)", value=True)
 
     submitted = st.form_submit_button("Fetch & Generate Report", type="primary")
@@ -45,6 +52,15 @@ if submitted:
         log_lines.append(msg)
         log_area.code("\n".join(log_lines))
 
+    periods = None
+    if add_summary:
+        if pre_start > pre_end or post_start > post_end:
+            st.error("Each period's start date must be on or before its end date.")
+            st.stop()
+        periods = {"pre": (pre_start, pre_end), "post": (post_start, post_end)}
+        if min(pre_start, post_start) < start_date or max(pre_end, post_end) > end_date:
+            st.warning("Pre/Post periods extend outside the fetched Start/End dates — missing days show as n/a.")
+
     try:
         with st.spinner("Working..."):
             session = requests.Session()
@@ -60,7 +76,7 @@ if submitted:
                 )
 
                 log("Building Excel report...")
-                excel_path = core.build_excel_report(tmp_dir, region)
+                excel_path = core.build_excel_report(tmp_dir, region, periods)
                 with open(excel_path, "rb") as f:
                     st.session_state["excel_bytes"] = f.read()
                 log("Excel done.")
@@ -85,7 +101,7 @@ if submitted:
                                 start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"),
                                 tmp_dir, include_network, log,
                             )
-                            excel_paths_for_pptx.append(core.build_excel_report(tmp_dir, sibling))
+                            excel_paths_for_pptx.append(core.build_excel_report(tmp_dir, sibling, periods))
 
                 if os.path.exists(template_path):
                     log("Updating presentation charts...")
