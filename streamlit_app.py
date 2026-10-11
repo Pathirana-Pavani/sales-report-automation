@@ -20,6 +20,8 @@ with st.form("kpi_form"):
     email = col1.text_input("RANDORS Username / Email")
     password = col2.text_input("Password", type="password")
 
+    two_factor_code = st.text_input("2FA code (only if your account has 2FA)", max_chars=10)
+
     region = st.selectbox("Region", list(kpi_fetch.DISTRICTS.keys()))
 
     today = datetime.now()
@@ -65,7 +67,7 @@ if submitted:
         with st.spinner("Working..."):
             session = requests.Session()
             log("Logging in...")
-            user = kpi_fetch.login(session, email, password)
+            user = kpi_fetch.login(session, email, password, two_factor_code.strip() or None)
             log(f"Logged in as {user['FirstName']} {user['LastName']}")
 
             with tempfile.TemporaryDirectory() as tmp_dir:

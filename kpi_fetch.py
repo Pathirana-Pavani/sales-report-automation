@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timezone
 
 import pandas as pd
+import requests
 
 BASE_URL = "https://randorsai.hutch.lk:8002"
 
@@ -78,14 +79,28 @@ SHEET_SERIES = {
 }
 
 
-def login(session, email, password):
-    resp = session.post(f"{BASE_URL}/api/auth/signin", json={"email": email, "password": password})
-    resp.raise_for_status()
-    data = resp.json()
-    if data.get("Status") != "Success":
-        raise RuntimeError(data.get("ErrorMessage") or "Login failed")
-    session.headers["Authorization"] = f"Bearer {data['User']['Token']}"
-    return data["User"]
+def login(session, email, password, two_factor_code=None):
+    payload = {"email": email, "password": password}
+    if two_factor_code:
+        payload["twoFactorCode"] = two_factor_code
+    try:
+        resp = session.post(f"{BASE_URL}/api/auth/signin", json=payload, timeout=30)
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Could not reach the RAN portal ({type(e).__name__}). It may be blocking this server's network.") from e
+    if not resp.ok:
+        raise RuntimeError(f"Login rejected by the portal (HTTP {resp.status_code}).")
+    try:
+        data = resp.json()
+    except ValueError:
+        raise RuntimeError("Portal returned a non-JSON response to login (blocked or proxied?).")
+    user = data.get("User") or {}
+    if data.get("Status") != "Success" or not user.get("Token"):
+        msg = data.get("ErrorMessage") or "Login failed"
+        if not two_factor_code:
+            msg += " — if your account uses 2FA, enter the 2FA code and try again."
+        raise RuntimeError(msg)
+    session.headers["Authorization"] = f"Bearer {user['Token']}"
+    return user
 
 
 def fetch_district_data(session, district_id, province_id, start, end):
