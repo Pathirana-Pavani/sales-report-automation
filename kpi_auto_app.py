@@ -16,7 +16,7 @@ class KpiAutoApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Hutch KPI Auto Report")
-        self.root.geometry("560x560")
+        self.root.geometry("560x680")
         self.log_queue = queue.Queue()
         self.target_dir = ""
         self._build_ui()
@@ -67,6 +67,21 @@ class KpiAutoApp:
         tk.Checkbutton(form, text="Include Network totals (BSS tab)",
                         variable=self.include_network_var).grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
+        self.summary_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(form, text="Add Pre/Post traffic summary to every sheet",
+                        variable=self.summary_var).grid(row=7, column=0, columnspan=2, sticky="w")
+        self.period_vars = {}
+        defaults = {
+            "pre_start": three_months_ago, "pre_end": three_months_ago + timedelta(days=6),
+            "post_start": today - timedelta(days=6), "post_end": today,
+        }
+        labels = {"pre_start": "Pre Start (YYYY-MM-DD):", "pre_end": "Pre End (YYYY-MM-DD):",
+                  "post_start": "Post Start (YYYY-MM-DD):", "post_end": "Post End (YYYY-MM-DD):"}
+        for i, key in enumerate(["pre_start", "pre_end", "post_start", "post_end"]):
+            tk.Label(form, text=labels[key]).grid(row=8 + i, column=0, sticky="w")
+            self.period_vars[key] = tk.StringVar(value=defaults[key].strftime("%Y-%m-%d"))
+            tk.Entry(form, textvariable=self.period_vars[key], width=35).grid(row=8 + i, column=1, sticky="w")
+
         self.run_btn = tk.Button(self.root, text="Fetch & Generate Report", font=("Arial", 11, "bold"),
                                   bg="blue", fg="white", command=self._start_run)
         self.run_btn.pack(pady=10)
@@ -109,6 +124,18 @@ class KpiAutoApp:
             messagebox.showerror("Missing Info", "Choose a target folder.")
             return
 
+        periods = None
+        if self.summary_var.get():
+            try:
+                p = {k: datetime.strptime(v.get().strip(), "%Y-%m-%d").date() for k, v in self.period_vars.items()}
+            except ValueError:
+                messagebox.showerror("Invalid Date", "Pre/Post dates must be YYYY-MM-DD.")
+                return
+            if p["pre_start"] > p["pre_end"] or p["post_start"] > p["post_end"]:
+                messagebox.showerror("Invalid Date", "Each period's start must be on or before its end.")
+                return
+            periods = {"pre": (p["pre_start"], p["pre_end"]), "post": (p["post_start"], p["post_end"])}
+
         self.run_btn.config(state=tk.DISABLED, text="Working...")
         self.log_text.config(state=tk.NORMAL)
         self.log_text.delete("1.0", tk.END)
@@ -116,12 +143,12 @@ class KpiAutoApp:
 
         thread = threading.Thread(
             target=self._run_worker,
-            args=(email, password, region, start, end, self.target_dir, self.include_network_var.get()),
+            args=(email, password, region, start, end, self.target_dir, self.include_network_var.get(), periods),
             daemon=True,
         )
         thread.start()
 
-    def _run_worker(self, email, password, region, start, end, target_dir, include_network):
+    def _run_worker(self, email, password, region, start, end, target_dir, include_network, periods=None):
         try:
             session = requests.Session()
             self._log("Logging in...")
@@ -131,7 +158,7 @@ class KpiAutoApp:
             kpi_fetch.fetch_region_report(session, region, start, end, target_dir, include_network, self._log)
 
             self._log("Building Excel report...")
-            excel_path = core.build_excel_report(target_dir, region)
+            excel_path = core.build_excel_report(target_dir, region, periods)
             self._log(f"Excel report saved to:\n{excel_path}")
 
             templates_dir = os.path.join(os.path.dirname(__file__), "templates")
@@ -149,7 +176,7 @@ class KpiAutoApp:
                     for sibling in sibling_regions:
                         self._log(f"Also fetching {sibling} (shares this presentation)...")
                         kpi_fetch.fetch_region_report(session, sibling, start, end, target_dir, include_network, self._log)
-                        excel_paths_for_pptx.append(core.build_excel_report(target_dir, sibling))
+                        excel_paths_for_pptx.append(core.build_excel_report(target_dir, sibling, periods))
 
             pptx_path = None
             if os.path.exists(template_path):

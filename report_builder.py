@@ -24,10 +24,82 @@ REGION_ADJECTIVE = {"South": "Southern", "North East": "NorthEast"}
 
 
 class ReportBuilder:
-    def __init__(self, target_base_dir, region):
+    def __init__(self, target_base_dir, region, periods=None, workbook=None):
         self.target_base_dir = target_base_dir
         self.selected_region = region
         self.regional_dfs = {}
+        # periods = {"pre": (start, end), "post": (start, end)} (date objects),
+        # the same for every sheet in one workbook; None disables the tables.
+        self.periods = periods
+        self.workbook = workbook
+
+    # ==========================================
+    # PRE / POST TRAFFIC SUMMARY TABLE
+    # ==========================================
+    @staticmethod
+    def _excel_col(idx):
+        name = ""
+        idx += 1
+        while idx:
+            idx, rem = divmod(idx - 1, 26)
+            name = chr(65 + rem) + name
+        return name
+
+    def _row_ranges(self, dates, start, end):
+        """1-based Excel row runs (first, last) whose date is within [start, end]."""
+        rows = [i + 2 for i, d in enumerate(dates) if start <= d <= end]
+        runs = []
+        for r in rows:
+            if runs and r == runs[-1][1] + 1: runs[-1][1] = r
+            else: runs.append([r, r])
+        return runs
+
+    def _add_summary_table(self, worksheet, sheet_name, final_df, unit, row, col):
+        """Writes a Pre / Post / Improvement table (average traffic per column)
+        as live Excel formulas referencing the sheet's own data."""
+        if not self.periods or self.workbook is None: return
+        headers = list(final_df.columns)
+        value_cols = [h for h in headers if h != 'Date']
+        # Network columns last, like the reference report (districts, Cluster, Network)
+        value_cols = [h for h in value_cols if 'Network' not in h] + [h for h in value_cols if 'Network' in h]
+        dates = pd.to_datetime(final_df['Date'], format='%m/%d/%Y').dt.date.tolist()
+
+        wb = self.workbook
+        head_fmt = wb.add_format({'bold': True, 'border': 1, 'bg_color': '#D9E1F2', 'align': 'center'})
+        label_fmt = wb.add_format({'bold': True, 'border': 1})
+        num_fmt = wb.add_format({'border': 1, 'num_format': '#,##0.00'})
+        pct_fmt = wb.add_format({'border': 1, 'num_format': '0.00%', 'bold': True})
+
+        def fmt_range(rng): return f"{rng[0].strftime('%b %d, %Y')} - {rng[1].strftime('%b %d, %Y')}"
+        pre, post = self.periods['pre'], self.periods['post']
+        worksheet.write(row, col, f"{sheet_name} ({unit})", head_fmt)
+        worksheet.write(row + 1, col, f"Pre Traffic ({fmt_range(pre)})", label_fmt)
+        worksheet.write(row + 2, col, f"Post Traffic ({fmt_range(post)})", label_fmt)
+        worksheet.write(row + 3, col, "Improvement", label_fmt)
+        worksheet.set_column(col, col, 38)
+
+        pre_runs = self._row_ranges(dates, *pre)
+        post_runs = self._row_ranges(dates, *post)
+        for i, name in enumerate(value_cols):
+            c = col + 1 + i
+            letter = self._excel_col(headers.index(name))
+            worksheet.write(row, c, name, head_fmt)
+            avgs = []
+            for r_off, runs in ((1, pre_runs), (2, post_runs)):
+                if runs:
+                    ref = ",".join(f"{letter}{a}:{letter}{b}" for a, b in runs)
+                    # cached value so viewers that don't recalculate still show numbers
+                    vals = pd.concat([final_df[name].iloc[a - 2:b - 1] for a, b in runs])
+                    avg = float(vals.mean())
+                    worksheet.write_formula(row + r_off, c, f"=AVERAGE({ref})", num_fmt, avg)
+                    avgs.append(avg)
+                else:
+                    worksheet.write(row + r_off, c, "n/a", num_fmt)
+                    avgs.append(None)
+            imp = (avgs[1] - avgs[0]) / avgs[0] if None not in avgs and avgs[0] else "n/a"
+            pre_c = f"{self._excel_col(c)}{row + 2}"
+            post_c = f"{self._excel_col(c)}{row + 3}"
+            worksheet.write_formula(row + 3, c, f'=IFERROR(({post_c}-{pre_c})/{pre_c},"n/a")', pct_fmt, imp)
 
     # ==========================================
     # CENTRAL SHEET PROCESSING
@@ -96,6 +168,7 @@ class ReportBuilder:
         final_df = master_df[['Date'] + [c for c in available if c in master_df.columns] + ['Network', 'Cluster']]
         final_df.to_excel(writer, sheet_name=sheet_name, index=False)
         worksheet = writer.sheets[sheet_name]; max_row = len(final_df); headers = list(final_df.columns); date_col = headers.index('Date')
+        self._add_summary_table(worksheet, sheet_name, final_df, unit, 38, 9)
         if 'Network' not in headers or 'Cluster' not in headers: return
         net_col, cluster_col = headers.index('Network'), headers.index('Cluster')
         c1_prim = workbook.add_chart({'type': 'line'})
@@ -135,6 +208,7 @@ class ReportBuilder:
         final_df.to_excel(writer, sheet_name=sheet_name, index=False)
         worksheet = writer.sheets[sheet_name]
         worksheet.set_column('A:A', 15, date_fmt)
+        self._add_summary_table(worksheet, sheet_name, final_df, unit, 20, 9)
 
         max_row = len(final_df)
         headers = list(final_df.columns)
@@ -197,6 +271,7 @@ class ReportBuilder:
         cluster_df.to_excel(writer, sheet_name=sheet_name_c, index=False)
         ws_c = writer.sheets[sheet_name_c]
         ws_c.set_column('A:A', 15, date_fmt)
+        self._add_summary_table(ws_c, sheet_name_c, cluster_df, 'Erlang', 20, 9)
         max_row = len(cluster_df)
 
         chart_c = workbook.add_chart({'type': 'line'})
@@ -218,6 +293,7 @@ class ReportBuilder:
             net_df.to_excel(writer, sheet_name=sheet_name_n, index=False)
             ws_n = writer.sheets[sheet_name_n]
             ws_n.set_column('A:A', 15, date_fmt)
+            self._add_summary_table(ws_n, sheet_name_n, net_df, 'Erlang', 20, 3)
 
             chart_n = workbook.add_chart({'type': 'line'})
             chart_n.add_series({'name': [sheet_name_n, 0, 1], 'categories': [sheet_name_n, 1, 0, max_row, 0], 'values': [sheet_name_n, 1, 1, max_row, 1]})
@@ -259,6 +335,7 @@ class ReportBuilder:
 
         date_fmt = workbook.add_format({'num_format': 'm/d/yyyy'})
         ws.set_column('A:A', 15, date_fmt)
+        self._add_summary_table(ws, sheet_name, final_df, 'TB', 20, 9)
         max_row = len(final_df)
 
         c1_prim = workbook.add_chart({'type': 'line'})
@@ -326,6 +403,7 @@ class ReportBuilder:
 
         date_fmt = workbook.add_format({'num_format': 'm/d/yyyy'})
         ws.set_column('A:A', 15, date_fmt)
+        self._add_summary_table(ws, sheet_name, final_df, 'Erlang', 20, 9)
         max_row = len(final_df)
 
         c1_prim = workbook.add_chart({'type': 'line'})
@@ -360,13 +438,16 @@ class ReportBuilder:
             ws.insert_chart('J2', c1_prim, {'x_scale': 1.5, 'y_scale': 1.2})
 
 
-def build_excel_report(target_base_dir, region):
-    builder = ReportBuilder(target_base_dir, region)
+def build_excel_report(target_base_dir, region, periods=None):
+    """periods: optional {"pre": (start, end), "post": (start, end)} of date
+    objects; adds a Pre/Post traffic summary table to every sheet."""
+    builder = ReportBuilder(target_base_dir, region, periods)
     base_folder = os.path.join(target_base_dir, "Sales Report", region)
     output_path = os.path.join(base_folder, f"{region}_Region_Final_Sales_Report.xlsx")
 
     writer = pd.ExcelWriter(output_path, engine='xlsxwriter')
     workbook = writer.book
+    builder.workbook = workbook
     date_fmt = workbook.add_format({'num_format': 'm/d/yyyy'})
 
     if region == "Central":
