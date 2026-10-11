@@ -15,13 +15,24 @@ st.set_page_config(page_title="Sales Report automation", page_icon="📊")
 st.title("Sales Report automation")
 st.caption("Fetches KPI data directly from the RAN portal and builds the Excel report + presentation for the region")
 
+col1, col2 = st.columns(2)
+email = col1.text_input("RANDORS Username / Email")
+password = col2.text_input("Password", type="password")
+
+col_otp1, col_otp2 = st.columns([1, 2])
+if col_otp1.button("Send OTP"):
+    if not email or not password:
+        st.error("Enter your username and password first.")
+    else:
+        try:
+            with st.spinner("Requesting OTP..."):
+                msg = kpi_fetch.send_otp(requests.Session(), email, password)
+            st.info(f"{msg} Enter the code below.")
+        except Exception as e:
+            st.error(f"Failed: {e}")
+two_factor_code = col_otp2.text_input("OTP code", max_chars=10)
+
 with st.form("kpi_form"):
-    col1, col2 = st.columns(2)
-    email = col1.text_input("RANDORS Username / Email")
-    password = col2.text_input("Password", type="password")
-
-    two_factor_code = st.text_input("2FA code (only if your account has 2FA)", max_chars=10)
-
     region = st.selectbox("Region", list(kpi_fetch.DISTRICTS.keys()))
 
     today = datetime.now()

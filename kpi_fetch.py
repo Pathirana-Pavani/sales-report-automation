@@ -103,6 +103,23 @@ def login(session, email, password, two_factor_code=None):
     return user
 
 
+def send_otp(session, email, password):
+    """Trigger the portal to send a 2FA OTP: a signin with no code makes it send one."""
+    try:
+        resp = session.post(f"{BASE_URL}/api/auth/signin", json={"email": email, "password": password}, timeout=30)
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Could not reach the RAN portal ({type(e).__name__}).") from e
+    if not resp.ok:
+        raise RuntimeError(f"Portal rejected the request (HTTP {resp.status_code}).")
+    try:
+        data = resp.json()
+    except ValueError:
+        raise RuntimeError("Portal returned a non-JSON response (blocked or proxied?).")
+    if (data.get("User") or {}).get("Token"):
+        return "Logged in without needing an OTP."
+    return data.get("ErrorMessage") or data.get("Message") or "OTP requested."
+
+
 def fetch_district_data(session, district_id, province_id, start, end):
     payload = {
         "RANKPIAggregationLevel": "GeographicalSitesCluster",
